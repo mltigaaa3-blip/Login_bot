@@ -16,7 +16,7 @@ const TOKEN = process.env.TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 
 /* GANTI INI */
-const CHAT_CHANNEL_ID = "ISI_CHANNEL_CHAT_KAMU";
+const CHAT_CHANNEL_ID = "1487799321117200476";
 
 /* TARGET WINSTREAK */
 let TARGET_DAYS = 30;
