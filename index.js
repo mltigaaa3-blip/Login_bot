@@ -122,9 +122,9 @@ client.on("messageCreate", async (msg) => {
     const embed = new EmbedBuilder()
       .setTitle("🌙 SISTEM LOGIN CSBK")
       .setDescription(`
-💬 Chat **5x di channel 💬｜chat**
+💬 Chat **5x di https://discord.com/channels/1437072658675269644/1437072659585175564**
 📅 Klik **Hadir**
-🔥 Jaga streak sampai ${getTarget()} hari
+🔥 Jaga streak sampai ${getTarget()} hari ( reward di transfer tiap akhir bulan )
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -135,7 +135,7 @@ client.on("messageCreate", async (msg) => {
 
 ⚠️ Aturan:
 • Reset jam 00:00 WIB  
-• Telat = ulang  
+• Telat = reward di ulang  
 
 ━━━━━━━━━━━━━━━━━━
 
