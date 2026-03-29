@@ -28,7 +28,11 @@ const client = new Client({
 
 /* ================= DATABASE ================= */
 
-const FILE = "./data_login.json";
+const FILE = "/data/data_login.json";
+
+/* ===== INIT STORAGE ===== */
+
+if (!fs.existsSync("/data")) fs.mkdirSync("/data");
 
 if (!fs.existsSync(FILE)) {
   fs.writeFileSync(FILE, JSON.stringify({}));
