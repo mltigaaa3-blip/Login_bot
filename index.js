@@ -12,8 +12,6 @@ const fs = require("fs");
 
 const TOKEN = process.env.TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
-
-/* GANTI INI */
 const CHAT_CHANNEL_ID = "1437072659585175564";
 
 /* ================= CLIENT ================= */
@@ -64,7 +62,7 @@ function getUser(id) {
   return data[id];
 }
 
-/* ================= TIME WIB ================= */
+/* ================= TIME ================= */
 
 function getToday() {
   return new Date().toLocaleDateString("en-CA", {
@@ -84,7 +82,7 @@ function getResetCountdown() {
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
 
-  return `${h}j ${m}m lagi`;
+  return `${h}j ${m}m`;
 }
 
 /* ================= BAR ================= */
@@ -95,7 +93,7 @@ function bar(val, max) {
   return "🟩".repeat(filled) + "⬜".repeat(size - filled);
 }
 
-/* ================= CHAT TRACK ================= */
+/* ================= CHAT ================= */
 
 client.on("messageCreate", (msg) => {
   if (msg.author.bot) return;
@@ -122,13 +120,9 @@ client.on("messageCreate", async (msg) => {
     if (msg.author.id !== ADMIN_ID)
       return msg.reply("Owner only");
 
-    const embed = buildPanelEmbed();
-
-    const row = buildButtons();
-
     const sent = await msg.channel.send({
-      embeds: [embed],
-      components: [row]
+      embeds: [buildPanel()],
+      components: [buildButtons()]
     });
 
     data._panel = {
@@ -143,7 +137,7 @@ client.on("messageCreate", async (msg) => {
 
 /* ================= BUILD PANEL ================= */
 
-function buildPanelEmbed() {
+function buildPanel() {
 
   const users = Object.entries(data)
     .filter(([id]) => id !== "_config" && id !== "_panel");
@@ -152,35 +146,38 @@ function buildPanelEmbed() {
 
   const sorted = users.sort((a, b) => b[1].streak - a[1].streak);
 
-  const top3 = sorted.slice(0, 3);
+  /* TOP 10 */
+  const leaderboard = sorted.slice(0, 10)
+    .map((u, i) => {
+      const medal =
+        i === 0 ? "🥇" :
+        i === 1 ? "🥈" :
+        i === 2 ? "🥉" : `**${i+1}.**`;
 
-  let topText = top3.map((u, i) =>
-    `**${i + 1}.** <@${u[0]}> (${u[1].streak})`
-  ).join("\n");
-
-  if (!topText) topText = "Belum ada data";
+      return `${medal} <@${u[0]}> — ${u[1].streak}`;
+    })
+    .join("\n") || "Belum ada data";
 
   return new EmbedBuilder()
-    .setTitle("🌙 SISTEM LOGIN CSBK")
+    .setTitle("🌙 CSBK DAILY LOGIN SYSTEM")
     .setDescription(`
-👥 Total login member: **${total}**
-⏳ Reset harian: **${getResetCountdown()}**
+👥 Total member: **${total}**
+⏳ Reset: **${getResetCountdown()} lagi**
 
 ━━━━━━━━━━━━━━━━━━
 
-🏆 Top 3:
-${topText}
+🏆 **Leaderboard**
+${leaderboard}
 
 ━━━━━━━━━━━━━━━━━━
 
-💎 1x hadir = 1⏣
-💬 Chat 5x → Klik Hadir  
-🎯 Target: ${getTarget()} hari (akhir bulan) 
-🎁 klik Claim → Untuk Mencairkan reward
+💎 1 hari = 1 Robux  
+💬 Chat 5x → 📅 Hadir  
+🎯 Target: ${getTarget()} hari  
 
 ━━━━━━━━━━━━━━━━━━
 
-🔥 Klik tombol di bawah!
+🔥 Jangan sampai streak putus!
 `)
     .setColor("Gold");
 }
@@ -202,7 +199,6 @@ function buildButtons() {
 /* ================= UPDATE PANEL ================= */
 
 async function updatePanel() {
-
   if (!data._panel) return;
 
   try {
@@ -210,12 +206,12 @@ async function updatePanel() {
     const msg = await channel.messages.fetch(data._panel.messageId);
 
     await msg.edit({
-      embeds: [buildPanelEmbed()],
+      embeds: [buildPanel()],
       components: [buildButtons()]
     });
 
   } catch (err) {
-    console.log("Panel update error:", err.message);
+    console.log("Panel error:", err.message);
   }
 }
 
@@ -227,27 +223,18 @@ client.on("interactionCreate", async (i) => {
   const user = getUser(i.user.id);
   const today = getToday();
 
-  /* LOGIN */
   if (i.customId === "login") {
 
     if (user.chatCount < 5)
-      return i.reply({
-        content: `❌ Chat dulu 5x (${user.chatCount}/5)`,
-        ephemeral: true
-      });
+      return i.reply({ content: `❌ Chat dulu 5x (${user.chatCount}/5)`, ephemeral: true });
 
     if (user.lastLogin === today)
-      return i.reply({
-        content: "❌ Sudah login hari ini",
-        ephemeral: true
-      });
+      return i.reply({ content: "❌ Sudah login hari ini", ephemeral: true });
 
     if (user.lastLogin) {
       const y = new Date(today);
       y.setDate(y.getDate() - 1);
-      const yesterday = y.toLocaleDateString("en-CA", {
-        timeZone: "Asia/Jakarta"
-      });
+      const yesterday = y.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
 
       if (user.lastLogin !== yesterday) {
         user.streak = 0;
@@ -266,11 +253,8 @@ client.on("interactionCreate", async (i) => {
         new EmbedBuilder()
           .setTitle("✅ LOGIN BERHASIL")
           .setDescription(`
-🔥 Streak: **${user.streak}/${getTarget()}**
-
+🔥 ${user.streak}/${getTarget()}
 ${bar(user.streak, getTarget())}
-
-💰 Robux: ${user.streak}
 `)
           .setColor("Green")
       ],
@@ -278,20 +262,13 @@ ${bar(user.streak, getTarget())}
     });
   }
 
-  /* CLAIM */
   if (i.customId === "claim") {
 
     if (user.streak < getTarget())
-      return i.reply({
-        content: `❌ Belum cukup (${user.streak}/${getTarget()})`,
-        ephemeral: true
-      });
+      return i.reply({ content: "❌ Belum cukup", ephemeral: true });
 
     if (user.claimed)
-      return i.reply({
-        content: "❌ Sudah claim",
-        ephemeral: true
-      });
+      return i.reply({ content: "❌ Sudah claim", ephemeral: true });
 
     user.claimed = true;
     save();
@@ -301,40 +278,11 @@ ${bar(user.streak, getTarget())}
       embeds: [
         new EmbedBuilder()
           .setTitle("🎉 CLAIM BERHASIL")
-          .setDescription(`💰 Kamu dapat ${getTarget()} Robux`)
+          .setDescription(`💰 ${getTarget()} Robux`)
           .setColor("Gold")
       ]
     });
   }
-});
-
-/* ================= LEADERBOARD ================= */
-
-client.on("messageCreate", (msg) => {
-
-  if (msg.content === "!lb") {
-
-    const sorted = Object.entries(data)
-      .filter(([id]) => id !== "_config" && id !== "_panel")
-      .sort((a, b) => b[1].streak - a[1].streak)
-      .slice(0, 10);
-
-    let text = sorted.map((u, i) =>
-      `**${i + 1}.** <@${u[0]}> — ${u[1].streak}`
-    ).join("\n");
-
-    if (!text) text = "Kosong";
-
-    msg.channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("🏆 LEADERBOARD")
-          .setDescription(text)
-          .setColor("Blue")
-      ]
-    });
-  }
-
 });
 
 /* ================= OWNER ================= */
@@ -345,18 +293,16 @@ client.on("messageCreate", (msg) => {
 
   if (msg.content.startsWith("!settarget")) {
     const num = parseInt(msg.content.split(" ")[1]);
-    if (isNaN(num)) return msg.reply("Masukkan angka");
+    if (isNaN(num)) return;
 
     data._config.targetDays = num;
     save();
     updatePanel();
-
-    msg.reply(`✅ Target ${num}`);
   }
 
   if (msg.content.startsWith("!reset")) {
     const user = msg.mentions.users.first();
-    if (!user) return msg.reply("Tag user");
+    if (!user) return;
 
     data[user.id] = {
       streak: 0,
@@ -368,15 +314,6 @@ client.on("messageCreate", (msg) => {
 
     save();
     updatePanel();
-
-    msg.reply("✅ Reset");
-  }
-
-  if (msg.content === "!backup") {
-    msg.channel.send({
-      content: "💾 Backup",
-      files: [FILE]
-    });
   }
 
 });
@@ -386,7 +323,6 @@ client.on("messageCreate", (msg) => {
 client.once("ready", () => {
   console.log("BOT ONLINE 🔥");
 
-  // update panel tiap 1 menit (buat countdown live)
   setInterval(updatePanel, 60000);
 });
 
