@@ -13,11 +13,8 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 
-/* GANTI INI */
-const CHAT_CHANNEL_ID = "1487799321117200476";
-
-/* TARGET WINSTREAK */
-let TARGET_DAYS = 30;
+/* GANTI INI SAJA */
+const CHAT_CHANNEL_ID = "1437072659585175564";
 
 /* ================= CLIENT ================= */
 
@@ -39,8 +36,19 @@ if (!fs.existsSync(FILE)) {
 
 let data = JSON.parse(fs.readFileSync(FILE));
 
+if (!data._config) {
+  data._config = {
+    targetDays: 30
+  };
+  save();
+}
+
 function save() {
   fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+}
+
+function getTarget() {
+  return data._config.targetDays;
 }
 
 function getUser(id) {
@@ -72,7 +80,7 @@ function bar(val, max) {
   return "🟩".repeat(filled) + "⬜".repeat(size - filled);
 }
 
-/* ================= CHAT TRACK ================= */
+/* ================= CHAT ================= */
 
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot) return;
@@ -86,13 +94,14 @@ client.on("messageCreate", async (msg) => {
     user.lastChatDay = today;
   }
 
-  user.chatCount += 1;
+  user.chatCount++;
   save();
 });
 
 /* ================= PANEL ================= */
 
 client.on("messageCreate", async (msg) => {
+
   if (msg.content === "!panel") {
 
     if (msg.author.id !== ADMIN_ID)
@@ -111,39 +120,32 @@ client.on("messageCreate", async (msg) => {
     );
 
     const embed = new EmbedBuilder()
-      .setTitle("🌙 SISTEM LOGIN HARIAN CSBK")
+      .setTitle("🌙 SISTEM LOGIN CSBK")
       .setDescription(`
-🎯 **Cara Main:**
-• Chat **5x** di channel
-• Klik tombol **Hadir**
-• Jaga streak sampai selesai
+💬 Chat **5x di channel 💬｜chat**
+📅 Klik **Hadir**
+🔥 Jaga streak sampai ${getTarget()} hari
 
 ━━━━━━━━━━━━━━━━━━
 
-💰 **Reward:**
+💰 Reward:
 1 Hari = 1 Robux  
-Target = ${TARGET_DAYS} hari  
 
 ━━━━━━━━━━━━━━━━━━
 
-⚠️ **Aturan:**
-• Harus chat dulu  
+⚠️ Aturan:
 • Reset jam 00:00 WIB  
-• Telat 1 hari → ulang  
+• Telat = ulang  
 
 ━━━━━━━━━━━━━━━━━━
 
 🔥 Klik tombol di bawah!
 `)
-      .setColor("Gold")
-      .setFooter({ text: "CSBK System" })
-      .setTimestamp();
+      .setColor("Gold");
 
-    msg.channel.send({
-      embeds: [embed],
-      components: [row]
-    });
+    msg.channel.send({ embeds: [embed], components: [row] });
   }
+
 });
 
 /* ================= BUTTON ================= */
@@ -156,8 +158,7 @@ client.on("interactionCreate", async (i) => {
     const user = getUser(i.user.id);
     const today = getToday();
 
-    /* ===== LOGIN ===== */
-
+    /* LOGIN */
     if (i.customId === "login") {
 
       if (user.chatCount < 5)
@@ -172,7 +173,6 @@ client.on("interactionCreate", async (i) => {
           ephemeral: true
         });
 
-      /* cek streak */
       if (user.lastLogin) {
         const y = new Date(today);
         y.setDate(y.getDate() - 1);
@@ -186,7 +186,7 @@ client.on("interactionCreate", async (i) => {
         }
       }
 
-      user.streak += 1;
+      user.streak++;
       user.lastLogin = today;
 
       save();
@@ -196,13 +196,11 @@ client.on("interactionCreate", async (i) => {
           new EmbedBuilder()
             .setTitle("✅ LOGIN BERHASIL")
             .setDescription(`
-🔥 Streak: **${user.streak}/${TARGET_DAYS}**
+🔥 Streak: **${user.streak}/${getTarget()}**
 
-${bar(user.streak, TARGET_DAYS)}
+${bar(user.streak, getTarget())}
 
-💰 Total Robux: ${user.streak}
-
-${user.streak === TARGET_DAYS - 1 ? "⚠️ Besok terakhir!" : ""}
+💰 Robux: ${user.streak}
 `)
             .setColor("Green")
         ],
@@ -210,13 +208,12 @@ ${user.streak === TARGET_DAYS - 1 ? "⚠️ Besok terakhir!" : ""}
       });
     }
 
-    /* ===== CLAIM ===== */
-
+    /* CLAIM */
     if (i.customId === "claim") {
 
-      if (user.streak < TARGET_DAYS)
+      if (user.streak < getTarget())
         return i.reply({
-          content: `❌ Belum cukup (${user.streak}/${TARGET_DAYS})`,
+          content: `❌ Belum cukup (${user.streak}/${getTarget()})`,
           ephemeral: true
         });
 
@@ -233,11 +230,7 @@ ${user.streak === TARGET_DAYS - 1 ? "⚠️ Besok terakhir!" : ""}
         embeds: [
           new EmbedBuilder()
             .setTitle("🎉 CLAIM BERHASIL")
-            .setDescription(`
-💰 Kamu dapat **${TARGET_DAYS} Robux**
-
-📩 Hubungi admin untuk pencairan
-`)
+            .setDescription(`💰 Kamu dapat ${getTarget()} Robux`)
             .setColor("Gold")
         ]
       });
@@ -248,9 +241,38 @@ ${user.streak === TARGET_DAYS - 1 ? "⚠️ Besok terakhir!" : ""}
   }
 });
 
+/* ================= LEADERBOARD ================= */
+
+client.on("messageCreate", async (msg) => {
+
+  if (msg.content === "!lb") {
+
+    const sorted = Object.entries(data)
+      .filter(([id]) => id !== "_config")
+      .sort((a, b) => b[1].streak - a[1].streak)
+      .slice(0, 10);
+
+    let text = "";
+
+    for (let i = 0; i < sorted.length; i++) {
+      const [id, u] = sorted[i];
+      text += `**${i + 1}.** <@${id}> — ${u.streak} hari\n`;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("🏆 LEADERBOARD STREAK")
+      .setDescription(text || "Kosong")
+      .setColor("Blue");
+
+    msg.channel.send({ embeds: [embed] });
+  }
+
+});
+
 /* ================= OWNER ================= */
 
 client.on("messageCreate", async (msg) => {
+
   if (msg.author.id !== ADMIN_ID) return;
 
   if (msg.content.startsWith("!reset")) {
@@ -266,23 +288,27 @@ client.on("messageCreate", async (msg) => {
     };
 
     save();
-    return msg.reply("✅ Reset berhasil");
+    msg.reply("✅ Reset");
   }
 
   if (msg.content.startsWith("!settarget")) {
     const num = parseInt(msg.content.split(" ")[1]);
+
     if (isNaN(num)) return msg.reply("Masukkan angka");
 
-    TARGET_DAYS = num;
-    return msg.reply(`✅ Target jadi ${num} hari`);
+    data._config.targetDays = num;
+    save();
+
+    msg.reply(`✅ Target jadi ${num} hari`);
   }
 
   if (msg.content === "!backup") {
     msg.channel.send({
-      content: "💾 Backup:",
+      content: "💾 Backup",
       files: ["./data_login.json"]
     });
   }
+
 });
 
 /* ================= READY ================= */
