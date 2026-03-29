@@ -163,8 +163,8 @@ function buildPanelEmbed() {
   return new EmbedBuilder()
     .setTitle("🌙 SISTEM LOGIN CSBK")
     .setDescription(`
-👥 Total pemain: **${total}**
-⏳ Reset: **${getResetCountdown()}**
+👥 Total login member: **${total}**
+⏳ Reset harian: **${getResetCountdown()}**
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -173,8 +173,10 @@ ${topText}
 
 ━━━━━━━━━━━━━━━━━━
 
+💎 1x hadir = 1⏣
 💬 Chat 5x → Klik Hadir  
-🎯 Target: ${getTarget()} hari  
+🎯 Target: ${getTarget()} hari (akhir bulan) 
+🎁 klik Claim → Untuk Mencairkan reward
 
 ━━━━━━━━━━━━━━━━━━
 
