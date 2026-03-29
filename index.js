@@ -13,7 +13,7 @@ const fs = require("fs");
 const TOKEN = process.env.TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 
-/* GANTI INI SAJA */
+/* GANTI INI */
 const CHAT_CHANNEL_ID = "1437072659585175564";
 
 /* ================= CLIENT ================= */
@@ -30,8 +30,6 @@ const client = new Client({
 
 const FILE = "/data/data_login.json";
 
-/* ===== INIT STORAGE ===== */
-
 if (!fs.existsSync("/data")) fs.mkdirSync("/data");
 
 if (!fs.existsSync(FILE)) {
@@ -41,9 +39,7 @@ if (!fs.existsSync(FILE)) {
 let data = JSON.parse(fs.readFileSync(FILE));
 
 if (!data._config) {
-  data._config = {
-    targetDays: 30
-  };
+  data._config = { targetDays: 30 };
   save();
 }
 
@@ -68,12 +64,27 @@ function getUser(id) {
   return data[id];
 }
 
-/* ================= WIB ================= */
+/* ================= TIME WIB ================= */
 
 function getToday() {
   return new Date().toLocaleDateString("en-CA", {
     timeZone: "Asia/Jakarta"
   });
+}
+
+function getResetCountdown() {
+  const now = new Date();
+  const jakarta = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+
+  const tomorrow = new Date(jakarta);
+  tomorrow.setHours(24, 0, 0, 0);
+
+  const diff = tomorrow - jakarta;
+
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+
+  return `${h}j ${m}m lagi`;
 }
 
 /* ================= BAR ================= */
@@ -84,9 +95,9 @@ function bar(val, max) {
   return "🟩".repeat(filled) + "⬜".repeat(size - filled);
 }
 
-/* ================= CHAT ================= */
+/* ================= CHAT TRACK ================= */
 
-client.on("messageCreate", async (msg) => {
+client.on("messageCreate", (msg) => {
   if (msg.author.bot) return;
   if (msg.channel.id !== CHAT_CHANNEL_ID) return;
 
@@ -111,173 +122,235 @@ client.on("messageCreate", async (msg) => {
     if (msg.author.id !== ADMIN_ID)
       return msg.reply("Owner only");
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("login")
-        .setLabel("📅 Hadir")
-        .setStyle(ButtonStyle.Success),
+    const embed = buildPanelEmbed();
 
-      new ButtonBuilder()
-        .setCustomId("claim")
-        .setLabel("💰 Claim")
-        .setStyle(ButtonStyle.Primary)
-    );
+    const row = buildButtons();
 
-    const embed = new EmbedBuilder()
-      .setTitle("🌙 SISTEM LOGIN CSBK")
-      .setDescription(`
-💬 Chat **5x di https://discord.com/channels/1437072658675269644/1437072659585175564**
-📅 Klik **Hadir**
-🔥 Jaga streak sampai ${getTarget()} hari ( reward di transfer tiap akhir bulan )
+    const sent = await msg.channel.send({
+      embeds: [embed],
+      components: [row]
+    });
+
+    data._panel = {
+      channelId: msg.channel.id,
+      messageId: sent.id
+    };
+
+    save();
+  }
+
+});
+
+/* ================= BUILD PANEL ================= */
+
+function buildPanelEmbed() {
+
+  const users = Object.entries(data)
+    .filter(([id]) => id !== "_config" && id !== "_panel");
+
+  const total = users.length;
+
+  const sorted = users.sort((a, b) => b[1].streak - a[1].streak);
+
+  const top3 = sorted.slice(0, 3);
+
+  let topText = top3.map((u, i) =>
+    `**${i + 1}.** <@${u[0]}> (${u[1].streak})`
+  ).join("\n");
+
+  if (!topText) topText = "Belum ada data";
+
+  return new EmbedBuilder()
+    .setTitle("🌙 SISTEM LOGIN CSBK")
+    .setDescription(`
+👥 Total pemain: **${total}**
+⏳ Reset: **${getResetCountdown()}**
 
 ━━━━━━━━━━━━━━━━━━
 
-💰 Reward:
-1 Hari = 1 Robux  
+🏆 Top 3:
+${topText}
 
 ━━━━━━━━━━━━━━━━━━
 
-⚠️ Aturan:
-• Reset jam 00:00 WIB  
-• Telat = reward di ulang  
+💬 Chat 5x → Klik Hadir  
+🎯 Target: ${getTarget()} hari  
 
 ━━━━━━━━━━━━━━━━━━
 
 🔥 Klik tombol di bawah!
 `)
-      .setColor("Gold");
+    .setColor("Gold");
+}
 
-    msg.channel.send({ embeds: [embed], components: [row] });
+function buildButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("login")
+      .setLabel("📅 Hadir")
+      .setStyle(ButtonStyle.Success),
+
+    new ButtonBuilder()
+      .setCustomId("claim")
+      .setLabel("💰 Claim")
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+/* ================= UPDATE PANEL ================= */
+
+async function updatePanel() {
+
+  if (!data._panel) return;
+
+  try {
+    const channel = await client.channels.fetch(data._panel.channelId);
+    const msg = await channel.messages.fetch(data._panel.messageId);
+
+    await msg.edit({
+      embeds: [buildPanelEmbed()],
+      components: [buildButtons()]
+    });
+
+  } catch (err) {
+    console.log("Panel update error:", err.message);
   }
-
-});
+}
 
 /* ================= BUTTON ================= */
 
 client.on("interactionCreate", async (i) => {
   if (!i.isButton()) return;
 
-  try {
+  const user = getUser(i.user.id);
+  const today = getToday();
 
-    const user = getUser(i.user.id);
-    const today = getToday();
+  /* LOGIN */
+  if (i.customId === "login") {
 
-    /* LOGIN */
-    if (i.customId === "login") {
-
-      if (user.chatCount < 5)
-        return i.reply({
-          content: `❌ Chat dulu 5x (${user.chatCount}/5)`,
-          ephemeral: true
-        });
-
-      if (user.lastLogin === today)
-        return i.reply({
-          content: "❌ Sudah login hari ini",
-          ephemeral: true
-        });
-
-      if (user.lastLogin) {
-        const y = new Date(today);
-        y.setDate(y.getDate() - 1);
-        const yesterday = y.toLocaleDateString("en-CA", {
-          timeZone: "Asia/Jakarta"
-        });
-
-        if (user.lastLogin !== yesterday) {
-          user.streak = 0;
-          user.claimed = false;
-        }
-      }
-
-      user.streak++;
-      user.lastLogin = today;
-
-      save();
-
+    if (user.chatCount < 5)
       return i.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("✅ LOGIN BERHASIL")
-            .setDescription(`
+        content: `❌ Chat dulu 5x (${user.chatCount}/5)`,
+        ephemeral: true
+      });
+
+    if (user.lastLogin === today)
+      return i.reply({
+        content: "❌ Sudah login hari ini",
+        ephemeral: true
+      });
+
+    if (user.lastLogin) {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      const yesterday = y.toLocaleDateString("en-CA", {
+        timeZone: "Asia/Jakarta"
+      });
+
+      if (user.lastLogin !== yesterday) {
+        user.streak = 0;
+        user.claimed = false;
+      }
+    }
+
+    user.streak++;
+    user.lastLogin = today;
+
+    save();
+    updatePanel();
+
+    return i.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("✅ LOGIN BERHASIL")
+          .setDescription(`
 🔥 Streak: **${user.streak}/${getTarget()}**
 
 ${bar(user.streak, getTarget())}
 
 💰 Robux: ${user.streak}
 `)
-            .setColor("Green")
-        ],
+          .setColor("Green")
+      ],
+      ephemeral: true
+    });
+  }
+
+  /* CLAIM */
+  if (i.customId === "claim") {
+
+    if (user.streak < getTarget())
+      return i.reply({
+        content: `❌ Belum cukup (${user.streak}/${getTarget()})`,
         ephemeral: true
       });
-    }
 
-    /* CLAIM */
-    if (i.customId === "claim") {
-
-      if (user.streak < getTarget())
-        return i.reply({
-          content: `❌ Belum cukup (${user.streak}/${getTarget()})`,
-          ephemeral: true
-        });
-
-      if (user.claimed)
-        return i.reply({
-          content: "❌ Sudah claim",
-          ephemeral: true
-        });
-
-      user.claimed = true;
-      save();
-
+    if (user.claimed)
       return i.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("🎉 CLAIM BERHASIL")
-            .setDescription(`💰 Kamu dapat ${getTarget()} Robux`)
-            .setColor("Gold")
-        ]
+        content: "❌ Sudah claim",
+        ephemeral: true
       });
-    }
 
-  } catch (err) {
-    console.log(err);
+    user.claimed = true;
+    save();
+    updatePanel();
+
+    return i.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🎉 CLAIM BERHASIL")
+          .setDescription(`💰 Kamu dapat ${getTarget()} Robux`)
+          .setColor("Gold")
+      ]
+    });
   }
 });
 
 /* ================= LEADERBOARD ================= */
 
-client.on("messageCreate", async (msg) => {
+client.on("messageCreate", (msg) => {
 
   if (msg.content === "!lb") {
 
     const sorted = Object.entries(data)
-      .filter(([id]) => id !== "_config")
+      .filter(([id]) => id !== "_config" && id !== "_panel")
       .sort((a, b) => b[1].streak - a[1].streak)
       .slice(0, 10);
 
-    let text = "";
+    let text = sorted.map((u, i) =>
+      `**${i + 1}.** <@${u[0]}> — ${u[1].streak}`
+    ).join("\n");
 
-    for (let i = 0; i < sorted.length; i++) {
-      const [id, u] = sorted[i];
-      text += `**${i + 1}.** <@${id}> — ${u.streak} hari\n`;
-    }
+    if (!text) text = "Kosong";
 
-    const embed = new EmbedBuilder()
-      .setTitle("🏆 LEADERBOARD STREAK")
-      .setDescription(text || "Kosong")
-      .setColor("Blue");
-
-    msg.channel.send({ embeds: [embed] });
+    msg.channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🏆 LEADERBOARD")
+          .setDescription(text)
+          .setColor("Blue")
+      ]
+    });
   }
 
 });
 
 /* ================= OWNER ================= */
 
-client.on("messageCreate", async (msg) => {
+client.on("messageCreate", (msg) => {
 
   if (msg.author.id !== ADMIN_ID) return;
+
+  if (msg.content.startsWith("!settarget")) {
+    const num = parseInt(msg.content.split(" ")[1]);
+    if (isNaN(num)) return msg.reply("Masukkan angka");
+
+    data._config.targetDays = num;
+    save();
+    updatePanel();
+
+    msg.reply(`✅ Target ${num}`);
+  }
 
   if (msg.content.startsWith("!reset")) {
     const user = msg.mentions.users.first();
@@ -292,24 +365,15 @@ client.on("messageCreate", async (msg) => {
     };
 
     save();
+    updatePanel();
+
     msg.reply("✅ Reset");
-  }
-
-  if (msg.content.startsWith("!settarget")) {
-    const num = parseInt(msg.content.split(" ")[1]);
-
-    if (isNaN(num)) return msg.reply("Masukkan angka");
-
-    data._config.targetDays = num;
-    save();
-
-    msg.reply(`✅ Target jadi ${num} hari`);
   }
 
   if (msg.content === "!backup") {
     msg.channel.send({
       content: "💾 Backup",
-      files: ["./data_login.json"]
+      files: [FILE]
     });
   }
 
@@ -319,6 +383,9 @@ client.on("messageCreate", async (msg) => {
 
 client.once("ready", () => {
   console.log("BOT ONLINE 🔥");
+
+  // update panel tiap 1 menit (buat countdown live)
+  setInterval(updatePanel, 60000);
 });
 
 client.login(TOKEN);
