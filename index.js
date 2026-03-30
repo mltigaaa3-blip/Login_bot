@@ -146,7 +146,6 @@ function buildPanel() {
 
   const sorted = users.sort((a, b) => b[1].streak - a[1].streak);
 
-  /* TOP 10 */
   const leaderboard = sorted.slice(0, 10)
     .map((u, i) => {
       const medal =
@@ -154,7 +153,7 @@ function buildPanel() {
         i === 1 ? "🥈" :
         i === 2 ? "🥉" : `**${i+1}.**`;
 
-      return `${medal} <@${u[0]}> — ${u[1].streak}`;
+      return `${medal} <@${u[0]}> — ${u[1].streak} ⏣`;
     })
     .join("\n") || "Belum ada data";
 
@@ -162,7 +161,7 @@ function buildPanel() {
     .setTitle("🌙 CSBK DAILY LOGIN SYSTEM")
     .setDescription(`
 👥 Total member: **${total}**
-⏳ Reset: **${getResetCountdown()} lagi**
+⏳ Reset Harian: **${getResetCountdown()} lagi**
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -171,14 +170,17 @@ ${leaderboard}
 
 ━━━━━━━━━━━━━━━━━━
 
-💎 1 hari = 1 Robux  
-💬 Chat 5x → 📅 Hadir  
-🎯 Target: ${getTarget()} hari  
+💎 1 hari login = 1⏣  
+
+💬 Chat **5x dulu**, lalu tekan tombol **📅 Hadir**
+
+🎯 Kumpulkan login sampai **akhir bulan (${getTarget()} hari)**  
+🎁 Tombol **💰 Claim** hanya bisa ditekan di hari terakhir (akhir bulan)
+
+⚠️ Jika tidak login 1 hari → reward di reset ke 0
 
 ━━━━━━━━━━━━━━━━━━
 
-🔥 Jangan sampai streak putus!
-`)
     .setColor("Gold");
 }
 
@@ -223,6 +225,7 @@ client.on("interactionCreate", async (i) => {
   const user = getUser(i.user.id);
   const today = getToday();
 
+  /* LOGIN */
   if (i.customId === "login") {
 
     if (user.chatCount < 5)
@@ -262,15 +265,36 @@ ${bar(user.streak, getTarget())}
     });
   }
 
+  /* CLAIM (AKHIR BULAN ONLY) */
   if (i.customId === "claim") {
 
+    if (user.lastLogin !== today)
+      return i.reply({
+        content: "❌ Kamu harus login hari ini dulu",
+        ephemeral: true
+      });
+
     if (user.streak < getTarget())
-      return i.reply({ content: "❌ Belum cukup", ephemeral: true });
+      return i.reply({
+        content: `❌ Claim hanya bisa di hari terakhir (${getTarget()} hari)`,
+        ephemeral: true
+      });
 
     if (user.claimed)
-      return i.reply({ content: "❌ Sudah claim", ephemeral: true });
+      return i.reply({
+        content: "❌ Sudah claim",
+        ephemeral: true
+      });
+
+    const reward = user.streak;
 
     user.claimed = true;
+
+    /* RESET */
+    user.streak = 0;
+    user.chatCount = 0;
+    user.lastLogin = null;
+
     save();
     updatePanel();
 
@@ -278,7 +302,7 @@ ${bar(user.streak, getTarget())}
       embeds: [
         new EmbedBuilder()
           .setTitle("🎉 CLAIM BERHASIL")
-          .setDescription(`💰 ${getTarget()} Robux`)
+          .setDescription(`💰 Kamu mendapatkan ${reward} Robux`)
           .setColor("Gold")
       ]
     });
