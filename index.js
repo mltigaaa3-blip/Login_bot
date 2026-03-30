@@ -85,6 +85,17 @@ function getResetCountdown() {
   return `${h}j ${m}m`;
 }
 
+/* 🔥 CEK AKHIR BULAN */
+function isLastDay() {
+  const now = new Date();
+  const jakarta = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+
+  const tomorrow = new Date(jakarta);
+  tomorrow.setDate(jakarta.getDate() + 1);
+
+  return jakarta.getMonth() !== tomorrow.getMonth();
+}
+
 /* ================= BAR ================= */
 
 function bar(val, max) {
@@ -114,7 +125,6 @@ client.on("messageCreate", (msg) => {
 /* ================= PANEL ================= */
 
 client.on("messageCreate", async (msg) => {
-
   if (msg.content === "!panel") {
 
     if (msg.author.id !== ADMIN_ID)
@@ -132,7 +142,6 @@ client.on("messageCreate", async (msg) => {
 
     save();
   }
-
 });
 
 /* ================= BUILD PANEL ================= */
@@ -175,14 +184,18 @@ ${leaderboard}
 💬 Chat **5x dulu**, lalu tekan tombol **📅 Hadir**
 
 🎯 Kumpulkan login sampai **akhir bulan (${getTarget()} hari)**  
-🎁 Tombol **💰 Claim** hanya bisa ditekan di hari terakhir (akhir bulan)
+🎁 Tombol **💰 Claim** hanya bisa di hari terakhir (akhir bulan)
 
 ⚠️ Jika tidak login 1 hari → reward di reset ke 0
 
 ━━━━━━━━━━━━━━━━━━
+
+🔥 Jangan sampai streak putus!
 `)
     .setColor("Gold");
 }
+
+/* ================= BUTTON ================= */
 
 function buildButtons() {
   return new ActionRowBuilder().addComponents(
@@ -265,8 +278,14 @@ ${bar(user.streak, getTarget())}
     });
   }
 
-  /* CLAIM (AKHIR BULAN ONLY) */
+  /* CLAIM - AKHIR BULAN */
   if (i.customId === "claim") {
+
+    if (!isLastDay())
+      return i.reply({
+        content: "❌ Claim hanya bisa di hari terakhir (akhir bulan)",
+        ephemeral: true
+      });
 
     if (user.lastLogin !== today)
       return i.reply({
@@ -274,9 +293,9 @@ ${bar(user.streak, getTarget())}
         ephemeral: true
       });
 
-    if (user.streak < getTarget())
+    if (user.streak <= 0)
       return i.reply({
-        content: `❌ Claim hanya bisa di hari terakhir (${getTarget()} hari)`,
+        content: "❌ Kamu belum punya reward",
         ephemeral: true
       });
 
