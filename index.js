@@ -180,7 +180,7 @@ ${leaderboard}
 ⚠️ Jika tidak login 1 hari → reward di reset ke 0
 
 ━━━━━━━━━━━━━━━━━━
-
+`)
     .setColor("Gold");
 }
 
