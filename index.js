@@ -38,7 +38,7 @@ if (!fs.existsSync(FILE)) {
 let data = JSON.parse(fs.readFileSync(FILE));
 
 if (!data._config) {
-  data._config = { lastMonth: null };
+  data._config = { lastMonth: null, lastResetDay: null };
   save();
 }
 
@@ -73,23 +73,37 @@ function checkNewMonth() {
   const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
 
   if (data._config.lastMonth !== currentMonth) {
-    console.log("RESET BULAN BARU");
 
     for (const id in data) {
       if (id.startsWith("_")) continue;
-
-      data[id] = {
-        streak: 0,
-        lastLogin: null,
-        chatCount: 0,
-        lastChatDay: null,
-        claimed: false
-      };
+      delete data[id];
     }
 
     data._config.lastMonth = currentMonth;
     save();
   }
+}
+
+/* ================= AUTO RESET HARIAN ================= */
+
+function checkDailyReset() {
+  const today = getToday();
+
+  if (data._config.lastResetDay === today) return;
+
+  for (const id in data) {
+    if (id.startsWith("_")) continue;
+
+    const user = data[id];
+
+    if (user.lastLogin !== today) {
+      // 🔥 HAPUS USER (BIAR CLEAN)
+      delete data[id];
+    }
+  }
+
+  data._config.lastResetDay = today;
+  save();
 }
 
 /* ================= USER ================= */
@@ -107,15 +121,7 @@ function getUser(id) {
   return data[id];
 }
 
-/* ================= BAR ================= */
-
-function bar(val, max) {
-  const size = 10;
-  const filled = Math.round((val / max) * size);
-  return "🟩".repeat(filled) + "⬜".repeat(size - filled);
-}
-
-/* ================= CHAT TRACK ================= */
+/* ================= CHAT ================= */
 
 client.on("messageCreate", (msg) => {
   if (msg.author.bot) return;
@@ -154,6 +160,27 @@ client.on("messageCreate", async (msg) => {
 
     save();
   }
+
+  /* 🔥 ADD MANUAL */
+  if (msg.content.startsWith("!add")) {
+
+    if (msg.author.id !== ADMIN_ID) return;
+
+    const userMention = msg.mentions.users.first();
+    const amount = parseInt(msg.content.split(" ")[2]);
+
+    if (!userMention || isNaN(amount)) return msg.reply("Format: !add @user jumlah");
+
+    const user = getUser(userMention.id);
+
+    user.streak += amount;
+
+    save();
+    updatePanel();
+
+    msg.reply(`✅ ${userMention.username} ditambah ${amount}`);
+  }
+
 });
 
 /* ================= BUILD PANEL ================= */
@@ -197,7 +224,7 @@ ${leaderboard}
 🎯 Login sampai akhir bulan  
 🎁 Claim hanya di hari terakhir  
 
-⚠️ Skip 1 hari → reset ke 0  
+⚠️ Skip 1 hari → auto hilang  
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -239,20 +266,20 @@ async function updatePanel() {
   } catch {}
 }
 
-/* ================= BUTTON HANDLER ================= */
+/* ================= BUTTON ================= */
 
 client.on("interactionCreate", async (i) => {
 
   if (!i.isButton()) return;
 
-  await i.deferReply({ ephemeral: true }); // 🔥 FIX ERROR
+  await i.deferReply({ ephemeral: true });
 
   checkNewMonth();
+  checkDailyReset();
 
   const user = getUser(i.user.id);
   const today = getToday();
 
-  /* LOGIN */
   if (i.customId === "login") {
 
     if (user.chatCount < 5)
@@ -261,42 +288,26 @@ client.on("interactionCreate", async (i) => {
     if (user.lastLogin === today)
       return i.editReply("❌ Sudah login hari ini");
 
-    if (user.lastLogin) {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      const yesterday = y.toISOString().slice(0, 10);
-
-      if (user.lastLogin !== yesterday) {
-        user.streak = 0;
-        user.claimed = false;
-      }
-    }
-
     user.streak++;
     user.lastLogin = today;
 
     save();
     updatePanel();
 
-    return i.editReply(`🔥 Login berhasil! Streak: ${user.streak}`);
+    return i.editReply(`🔥 Streak kamu: ${user.streak}`);
   }
 
-  /* CLAIM */
   if (i.customId === "claim") {
 
     if (!isLastDay())
-      return i.editReply("❌ Claim hanya bisa di hari terakhir");
+      return i.editReply("❌ Belum hari terakhir");
 
     if (user.lastLogin !== today)
       return i.editReply("❌ Login dulu hari ini");
 
-    if (user.streak <= 0)
-      return i.editReply("❌ Tidak ada reward");
-
     const reward = user.streak;
 
-    user.streak = 0;
-    user.claimed = true;
+    delete data[i.user.id]; // 🔥 reset clean
 
     save();
     updatePanel();
@@ -305,42 +316,14 @@ client.on("interactionCreate", async (i) => {
   }
 });
 
-/* ================= OWNER ================= */
-
-client.on("messageCreate", (msg) => {
-
-  if (msg.author.id !== ADMIN_ID) return;
-
-  if (msg.content === "!resetall") {
-
-    for (const id in data) {
-      if (id.startsWith("_")) continue;
-
-      data[id] = {
-        streak: 0,
-        lastLogin: null,
-        chatCount: 0,
-        lastChatDay: null,
-        claimed: false
-      };
-    }
-
-    save();
-    updatePanel();
-
-    msg.reply("✅ Semua user di reset");
-  }
-});
-
 /* ================= READY ================= */
 
 client.once("ready", () => {
   console.log("BOT ONLINE 🔥");
 
-  checkNewMonth();
-
   setInterval(() => {
     checkNewMonth();
+    checkDailyReset();
     updatePanel();
   }, 60000);
 });
