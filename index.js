@@ -37,7 +37,7 @@ if (!fs.existsSync(FILE)) {
 let data = JSON.parse(fs.readFileSync(FILE));
 
 if (!data._config) {
-  data._config = { targetDays: 30, lastMonth: null };
+  data._config = { lastMonth: null };
   save();
 }
 
@@ -55,41 +55,66 @@ function getToday() {
   return getJakarta().toISOString().slice(0, 10);
 }
 
-/* 🔥 SISA HARI BULAN */
 function getRemainingDays() {
   const now = getJakarta();
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   return lastDay.getDate() - now.getDate();
 }
 
-/* 🔥 CEK AKHIR BULAN */
 function isLastDay() {
   return getRemainingDays() === 0;
 }
 
-/* 🔥 AUTO RESET BULAN */
+/* ================= AUTO RESET BULAN ================= */
+
+function resetAllUsers() {
+  for (const id in data) {
+    if (id.startsWith("_")) continue;
+
+    data[id] = {
+      streak: 0,
+      lastLogin: null,
+      chatCount: 0,
+      lastChatDay: null,
+      claimed: false
+    };
+  }
+}
+
 function checkNewMonth() {
   const now = getJakarta();
   const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
 
   if (data._config.lastMonth !== currentMonth) {
-    console.log("RESET BULAN BARU");
-
-    for (const id in data) {
-      if (id.startsWith("_")) continue;
-
-      data[id] = {
-        streak: 0,
-        lastLogin: null,
-        chatCount: 0,
-        lastChatDay: null,
-        claimed: false
-      };
-    }
-
+    resetAllUsers();
     data._config.lastMonth = currentMonth;
     save();
   }
+}
+
+/* ================= VALIDASI STREAK ================= */
+
+function validateStreaks() {
+  const today = getToday();
+
+  for (const id in data) {
+    if (id.startsWith("_")) continue;
+
+    const user = data[id];
+
+    if (!user.lastLogin) continue;
+
+    const y = new Date(today);
+    y.setDate(y.getDate() - 1);
+    const yesterday = y.toISOString().slice(0, 10);
+
+    if (user.lastLogin !== today && user.lastLogin !== yesterday) {
+      user.streak = 0;
+      user.claimed = false;
+    }
+  }
+
+  save();
 }
 
 /* ================= USER ================= */
@@ -161,6 +186,8 @@ client.on("messageCreate", async (msg) => {
 
 function buildPanel() {
 
+  validateStreaks();
+
   const users = Object.entries(data)
     .filter(([id]) => !id.startsWith("_"));
 
@@ -175,35 +202,41 @@ function buildPanel() {
         i === 1 ? "🥈" :
         i === 2 ? "🥉" : `**${i+1}.**`;
 
-      return `${medal} <@${u[0]}> — ${u[1].streak} ⏣`;
+      return `${medal} <@${u[0]}>
+└ 💰 ${u[1].streak} ⏣`;
     })
-    .join("\n") || "Belum ada data";
+    .join("\n\n") || "Belum ada data";
 
   return new EmbedBuilder()
     .setTitle("🌙 CSBK DAILY LOGIN SYSTEM")
     .setDescription(`
-👥 Total member: **${total}**
-⏳ Sisa hari bulan: **${getRemainingDays()} hari**
+👥 **Total Member:** ${total}  
+⏳ **Sisa Bulan:** ${getRemainingDays()} hari  
 
 ━━━━━━━━━━━━━━━━━━
 
-🏆 **Leaderboard**
+🏆 **LEADERBOARD**
 ${leaderboard}
 
 ━━━━━━━━━━━━━━━━━━
 
-💎 1 hari login = 1⏣  
+💎 **Reward**
+• 1 hari = 1 ⏣  
 
-💬 Chat 5x → 📅 Hadir
+📌 **Cara Main**
+• Chat 5x → klik **📅 Hadir**  
+• Login tiap hari tanpa putus  
 
-🎯 Login sampai akhir bulan  
-🎁 Claim hanya di hari terakhir
+🎯 **Goal**
+• Kumpulkan sampai akhir bulan  
+• Claim hanya di hari terakhir  
 
-⚠️ Skip 1 hari → reset ke 0
+⚠️ **PENTING**
+• Skip 1 hari → reset ke 0  
 
 ━━━━━━━━━━━━━━━━━━
 
-🔥 Jangan sampai streak putus!
+🔥 **Jangan sampai streak putus!**
 `)
     .setColor("Gold");
 }
@@ -290,6 +323,9 @@ client.on("interactionCreate", async (i) => {
     if (user.lastLogin !== today)
       return i.reply({ content: "❌ Login dulu hari ini", ephemeral: true });
 
+    if (user.streak <= 0)
+      return i.reply({ content: "❌ Kamu tidak punya reward", ephemeral: true });
+
     const reward = user.streak;
 
     user.streak = 0;
@@ -299,7 +335,7 @@ client.on("interactionCreate", async (i) => {
     updatePanel();
 
     return i.reply({
-      content: `🎉 Kamu dapat ${reward} Robux`
+      content: `🎉 Kamu mendapatkan ${reward} Robux`
     });
   }
 });
@@ -311,22 +347,9 @@ client.on("messageCreate", (msg) => {
   if (msg.author.id !== ADMIN_ID) return;
 
   if (msg.content === "!resetall") {
-
-    for (const id in data) {
-      if (id.startsWith("_")) continue;
-
-      data[id] = {
-        streak: 0,
-        lastLogin: null,
-        chatCount: 0,
-        lastChatDay: null,
-        claimed: false
-      };
-    }
-
+    resetAllUsers();
     save();
     updatePanel();
-
     msg.reply("✅ Semua user di reset");
   }
 
