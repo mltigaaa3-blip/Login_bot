@@ -6,6 +6,7 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require("discord.js");
+
 const fs = require("fs");
 
 /* ================= CONFIG ================= */
@@ -67,54 +68,28 @@ function isLastDay() {
 
 /* ================= AUTO RESET BULAN ================= */
 
-function resetAllUsers() {
-  for (const id in data) {
-    if (id.startsWith("_")) continue;
-
-    data[id] = {
-      streak: 0,
-      lastLogin: null,
-      chatCount: 0,
-      lastChatDay: null,
-      claimed: false
-    };
-  }
-}
-
 function checkNewMonth() {
   const now = getJakarta();
   const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
 
   if (data._config.lastMonth !== currentMonth) {
-    resetAllUsers();
+    console.log("RESET BULAN BARU");
+
+    for (const id in data) {
+      if (id.startsWith("_")) continue;
+
+      data[id] = {
+        streak: 0,
+        lastLogin: null,
+        chatCount: 0,
+        lastChatDay: null,
+        claimed: false
+      };
+    }
+
     data._config.lastMonth = currentMonth;
     save();
   }
-}
-
-/* ================= VALIDASI STREAK ================= */
-
-function validateStreaks() {
-  const today = getToday();
-
-  for (const id in data) {
-    if (id.startsWith("_")) continue;
-
-    const user = data[id];
-
-    if (!user.lastLogin) continue;
-
-    const y = new Date(today);
-    y.setDate(y.getDate() - 1);
-    const yesterday = y.toISOString().slice(0, 10);
-
-    if (user.lastLogin !== today && user.lastLogin !== yesterday) {
-      user.streak = 0;
-      user.claimed = false;
-    }
-  }
-
-  save();
 }
 
 /* ================= USER ================= */
@@ -140,7 +115,7 @@ function bar(val, max) {
   return "🟩".repeat(filled) + "⬜".repeat(size - filled);
 }
 
-/* ================= CHAT ================= */
+/* ================= CHAT TRACK ================= */
 
 client.on("messageCreate", (msg) => {
   if (msg.author.bot) return;
@@ -179,14 +154,11 @@ client.on("messageCreate", async (msg) => {
 
     save();
   }
-
 });
 
 /* ================= BUILD PANEL ================= */
 
 function buildPanel() {
-
-  validateStreaks();
 
   const users = Object.entries(data)
     .filter(([id]) => !id.startsWith("_"));
@@ -202,41 +174,34 @@ function buildPanel() {
         i === 1 ? "🥈" :
         i === 2 ? "🥉" : `**${i+1}.**`;
 
-      return `${medal} <@${u[0]}>
-└ 💰 ${u[1].streak} ⏣`;
+      return `${medal} <@${u[0]}> — ${u[1].streak} ⏣`;
     })
-    .join("\n\n") || "Belum ada data";
+    .join("\n") || "Belum ada data";
 
   return new EmbedBuilder()
     .setTitle("🌙 CSBK DAILY LOGIN SYSTEM")
     .setDescription(`
-👥 **Total Member:** ${total}  
-⏳ **Sisa Bulan:** ${getRemainingDays()} hari  
+👥 Total member: **${total}**
+⏳ Sisa hari bulan: **${getRemainingDays()} hari**
 
 ━━━━━━━━━━━━━━━━━━
 
-🏆 **LEADERBOARD**
+🏆 **Leaderboard**
 ${leaderboard}
 
 ━━━━━━━━━━━━━━━━━━
 
-💎 **Reward**
-• 1 hari = 1 ⏣  
+💎 1 hari login = 1⏣  
+💬 Chat 5x → 📅 Hadir  
 
-📌 **Cara Main**
-• Chat 5x → klik **📅 Hadir**  
-• Login tiap hari tanpa putus  
+🎯 Login sampai akhir bulan  
+🎁 Claim hanya di hari terakhir  
 
-🎯 **Goal**
-• Kumpulkan sampai akhir bulan  
-• Claim hanya di hari terakhir  
-
-⚠️ **PENTING**
-• Skip 1 hari → reset ke 0  
+⚠️ Skip 1 hari → reset ke 0  
 
 ━━━━━━━━━━━━━━━━━━
 
-🔥 **Jangan sampai streak putus!**
+🔥 Jangan sampai streak putus!
 `)
     .setColor("Gold");
 }
@@ -274,23 +239,27 @@ async function updatePanel() {
   } catch {}
 }
 
-/* ================= BUTTON ================= */
+/* ================= BUTTON HANDLER ================= */
 
 client.on("interactionCreate", async (i) => {
+
   if (!i.isButton()) return;
+
+  await i.deferReply({ ephemeral: true }); // 🔥 FIX ERROR
 
   checkNewMonth();
 
   const user = getUser(i.user.id);
   const today = getToday();
 
+  /* LOGIN */
   if (i.customId === "login") {
 
     if (user.chatCount < 5)
-      return i.reply({ content: "❌ Chat dulu 5x", ephemeral: true });
+      return i.editReply(`❌ Chat dulu 5x (${user.chatCount}/5)`);
 
     if (user.lastLogin === today)
-      return i.reply({ content: "❌ Sudah login", ephemeral: true });
+      return i.editReply("❌ Sudah login hari ini");
 
     if (user.lastLogin) {
       const y = new Date(today);
@@ -309,22 +278,20 @@ client.on("interactionCreate", async (i) => {
     save();
     updatePanel();
 
-    return i.reply({
-      content: `🔥 ${user.streak} hari`,
-      ephemeral: true
-    });
+    return i.editReply(`🔥 Login berhasil! Streak: ${user.streak}`);
   }
 
+  /* CLAIM */
   if (i.customId === "claim") {
 
     if (!isLastDay())
-      return i.reply({ content: "❌ Belum hari terakhir", ephemeral: true });
+      return i.editReply("❌ Claim hanya bisa di hari terakhir");
 
     if (user.lastLogin !== today)
-      return i.reply({ content: "❌ Login dulu hari ini", ephemeral: true });
+      return i.editReply("❌ Login dulu hari ini");
 
     if (user.streak <= 0)
-      return i.reply({ content: "❌ Kamu tidak punya reward", ephemeral: true });
+      return i.editReply("❌ Tidak ada reward");
 
     const reward = user.streak;
 
@@ -334,9 +301,7 @@ client.on("interactionCreate", async (i) => {
     save();
     updatePanel();
 
-    return i.reply({
-      content: `🎉 Kamu mendapatkan ${reward} Robux`
-    });
+    return i.editReply(`🎉 Kamu dapat ${reward} Robux`);
   }
 });
 
@@ -347,12 +312,24 @@ client.on("messageCreate", (msg) => {
   if (msg.author.id !== ADMIN_ID) return;
 
   if (msg.content === "!resetall") {
-    resetAllUsers();
+
+    for (const id in data) {
+      if (id.startsWith("_")) continue;
+
+      data[id] = {
+        streak: 0,
+        lastLogin: null,
+        chatCount: 0,
+        lastChatDay: null,
+        claimed: false
+      };
+    }
+
     save();
     updatePanel();
+
     msg.reply("✅ Semua user di reset");
   }
-
 });
 
 /* ================= READY ================= */
