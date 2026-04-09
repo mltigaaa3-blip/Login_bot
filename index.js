@@ -79,6 +79,7 @@ function checkNewMonth() {
 
       data[id].streak = 0;
       data[id].claimed = false;
+      data[id].lastLogin = null; // 🔥 penting
     }
 
     data._config.lastMonth = currentMonth;
@@ -93,19 +94,19 @@ function checkDailyReset() {
 
   if (data._config.lastResetDay === today) return;
 
-  const now = new Date(today);
-
   for (const id in data) {
     if (id.startsWith("_")) continue;
 
     const user = data[id];
+
     if (!user.lastLogin) continue;
 
-    const last = new Date(user.lastLogin);
-    const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+    // 🔥 FIX UTAMA (BANDING STRING, BUKAN DATE OBJECT)
+    const yesterday = new Date(getJakarta());
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = yesterday.toISOString().slice(0, 10);
 
-    // 🔥 SKIP → RESET STREAK (BUKAN DELETE)
-    if (diffDays >= 1) {
+    if (user.lastLogin !== today && user.lastLogin !== yStr) {
       user.streak = 0;
       user.claimed = false;
     }
@@ -170,7 +171,6 @@ client.on("messageCreate", async (msg) => {
     save();
   }
 
-  /* ADD MANUAL */
   if (msg.content.startsWith("!add")) {
 
     if (msg.author.id !== ADMIN_ID) return;
