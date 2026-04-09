@@ -66,7 +66,7 @@ function isLastDay() {
   return getRemainingDays() === 0;
 }
 
-/* ================= AUTO RESET BULAN ================= */
+/* ================= RESET BULAN ================= */
 
 function checkNewMonth() {
   const now = getJakarta();
@@ -76,7 +76,9 @@ function checkNewMonth() {
 
     for (const id in data) {
       if (id.startsWith("_")) continue;
-      delete data[id];
+
+      data[id].streak = 0;
+      data[id].claimed = false;
     }
 
     data._config.lastMonth = currentMonth;
@@ -84,21 +86,28 @@ function checkNewMonth() {
   }
 }
 
-/* ================= AUTO RESET HARIAN ================= */
+/* ================= RESET HARIAN ================= */
 
 function checkDailyReset() {
   const today = getToday();
 
   if (data._config.lastResetDay === today) return;
 
+  const now = new Date(today);
+
   for (const id in data) {
     if (id.startsWith("_")) continue;
 
     const user = data[id];
+    if (!user.lastLogin) continue;
 
-    if (user.lastLogin !== today) {
-      // 🔥 HAPUS USER (BIAR CLEAN)
-      delete data[id];
+    const last = new Date(user.lastLogin);
+    const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+
+    // 🔥 SKIP → RESET STREAK (BUKAN DELETE)
+    if (diffDays >= 1) {
+      user.streak = 0;
+      user.claimed = false;
     }
   }
 
@@ -161,7 +170,7 @@ client.on("messageCreate", async (msg) => {
     save();
   }
 
-  /* 🔥 ADD MANUAL */
+  /* ADD MANUAL */
   if (msg.content.startsWith("!add")) {
 
     if (msg.author.id !== ADMIN_ID) return;
@@ -169,7 +178,8 @@ client.on("messageCreate", async (msg) => {
     const userMention = msg.mentions.users.first();
     const amount = parseInt(msg.content.split(" ")[2]);
 
-    if (!userMention || isNaN(amount)) return msg.reply("Format: !add @user jumlah");
+    if (!userMention || isNaN(amount))
+      return msg.reply("Format: !add @user jumlah");
 
     const user = getUser(userMention.id);
 
@@ -224,7 +234,7 @@ ${leaderboard}
 🎯 Login sampai akhir bulan  
 🎁 Claim hanya di hari terakhir  
 
-⚠️ Skip 1 hari → auto hilang  
+⚠️ Skip 1 hari → streak reset ke 0  
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -307,7 +317,8 @@ client.on("interactionCreate", async (i) => {
 
     const reward = user.streak;
 
-    delete data[i.user.id]; // 🔥 reset clean
+    user.streak = 0;
+    user.claimed = true;
 
     save();
     updatePanel();
