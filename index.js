@@ -103,13 +103,15 @@ function checkDailyReset() {
 
     // 🔥 FIX UTAMA (BANDING STRING, BUKAN DATE OBJECT)
     const yesterday = new Date(getJakarta());
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yStr = yesterday.toISOString().slice(0, 10);
+    const now = new Date(getJakarta());
+const last = new Date(user.lastLogin);
 
-    if (user.lastLogin !== today && user.lastLogin !== yStr) {
-      user.streak = 0;
-      user.claimed = false;
-    }
+const diff = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+
+if (diff >= 1) {
+  user.streak = 0;
+  user.claimed = false;
+}
   }
 
   data._config.lastResetDay = today;
@@ -198,7 +200,7 @@ client.on("messageCreate", async (msg) => {
 function buildPanel() {
 
   const users = Object.entries(data)
-    .filter(([id]) => !id.startsWith("_"));
+  .filter(([id, u]) => !id.startsWith("_") && u.streak > 0);
 
   const total = users.length;
 
