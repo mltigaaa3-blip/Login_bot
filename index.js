@@ -307,6 +307,7 @@ client.on("interactionCreate", async (i) => {
 
     user.streak++;
     user.lastLogin = today;
+    user.chatCount = 0;
 
     save();
     updatePanel();
