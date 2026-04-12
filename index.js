@@ -53,7 +53,13 @@ function getJakarta() {
 }
 
 function getToday() {
-  return getJakarta().toISOString().slice(0, 10);
+  const now = getJakarta();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function getRemainingDays() {
@@ -94,24 +100,22 @@ function checkDailyReset() {
 
   if (data._config.lastResetDay === today) return;
 
+  const y = getJakarta();
+  y.setDate(y.getDate() - 1);
+
+  const yesterday = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,"0")}-${String(y.getDate()).padStart(2,"0")}`;
+
   for (const id in data) {
     if (id.startsWith("_")) continue;
 
     const user = data[id];
-
     if (!user.lastLogin) continue;
 
-    // 🔥 FIX UTAMA (BANDING STRING, BUKAN DATE OBJECT)
-    const yesterday = new Date(getJakarta());
-    const now = new Date(getJakarta());
-const last = new Date(user.lastLogin);
-
-const diff = Math.floor((now - last) / (1000 * 60 * 60 * 24));
-
-if (diff >= 1) {
-  user.streak = 0;
-  user.claimed = false;
-}
+    // 🔥 HANYA RESET JIKA BENAR-BENAR SKIP
+    if (user.lastLogin !== today && user.lastLogin !== yesterday) {
+      user.streak = 0;
+      user.claimed = false;
+    }
   }
 
   data._config.lastResetDay = today;
@@ -202,7 +206,8 @@ function buildPanel() {
   const users = Object.entries(data)
   .filter(([id, u]) => !id.startsWith("_") && u.streak > 0);
 
-  const total = users.length;
+  const total = Object.entries(data)
+  .filter(([id]) => !id.startsWith("_")).length;
 
   const sorted = users.sort((a, b) => b[1].streak - a[1].streak);
 
@@ -331,9 +336,15 @@ client.on("interactionCreate", async (i) => {
 
 /* ================= READY ================= */
 
-client.once("ready", () => {
+  client.once("ready", () => {
   console.log("BOT ONLINE 🔥");
 
+  // 🔥 RUN SEKALI SAAT START
+  checkNewMonth();
+  checkDailyReset();
+  updatePanel();
+
+  // 🔁 UPDATE TIAP 1 MENIT
   setInterval(() => {
     checkNewMonth();
     checkDailyReset();
