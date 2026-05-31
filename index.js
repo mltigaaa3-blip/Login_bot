@@ -72,24 +72,6 @@ function isLastDay() {
   return getRemainingDays() === 0;
 }
 
-if (msg.content === "!claimed") {
-
-  if (msg.author.id !== ADMIN_ID) return;
-
-  const claimed = Object.entries(data)
-    .filter(([id, user]) =>
-      !id.startsWith("_") && user.claimed === true
-    );
-
-  if (!claimed.length)
-    return msg.reply("Belum ada yang claim.");
-
-  const list = claimed
-    .map(([id]) => `<@${id}>`)
-    .join("\n");
-
-  msg.reply(`🎁 Sudah claim:\n${list}`);
-}
 
 /* ================= RESET BULAN ================= */
 
@@ -195,6 +177,25 @@ client.on("messageCreate", async (msg) => {
 
     save();
   }
+
+if (msg.content === "!claimed") {
+
+  if (msg.author.id !== ADMIN_ID) return;
+
+  const claimed = Object.entries(data)
+    .filter(([id, user]) =>
+      !id.startsWith("_") && user.claimed === true
+    );
+
+  if (!claimed.length)
+    return msg.reply("Belum ada yang claim.");
+
+  const list = claimed
+    .map(([id]) => `<@${id}>`)
+    .join("\n");
+
+  msg.reply(`🎁 Sudah claim:\n${list}`);
+}
 
   if (msg.content.startsWith("!add")) {
 
